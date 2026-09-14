@@ -4,14 +4,15 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const http = require('http'); 
 const { Server } = require('socket.io'); 
-const Message = require('./models/messageModel'); // استيراد موديل الرسائل
-
+const Message = require('./models/messageModel'); 
 dotenv.config();
-
 const authRoutes = require('./routes/authRoutes');
 const friendRoutes = require('./routes/friendRoutes');
-// 1. أضف هذا السطر في الأعلى مع باقي الـ require
 const messageRoutes = require('./routes/messageRoutes');
+const { sendPushNotification } =   require('./services/notificationService');
+const User = require('./models/User');  
+const userRoutes = require('./routes/userRoutes');
+
 
 // 2. أضف هذا السطر تحت app.use('/api/friends', ...)
 
@@ -29,11 +30,11 @@ app.use(express.json());
 app.use(cors());
 
 io.on('connection', (socket) => {
-    console.log('مستخدم جديد اتصل:', socket.id);
+    console.log('>>sokect successfully connected', socket.id);
 
      socket.on('join', (userId) => {
         socket.join(userId);     
-        console.log(`المستخدم ${userId} انضم لغرفته`);
+        console.log(`the user ${userId} has been joined to room`);
     });
 
      socket.on('sendMessage', async (data) => {
@@ -57,11 +58,19 @@ io.to(senderId).emit('receiveMessage', {
     text, 
     createdAt: newMessage.createdAt 
 });
-
-            
-            
+     const receiver = await User.findById(receiverId);
+     const sender = await User.findById(senderId);
+if (receiver && receiver.fcmToken) {
+                await sendPushNotification({
+                    recipientFcmToken: receiver.fcmToken,
+                    senderName: sender ? sender.username : 'رسالة جديدة',
+                    messageText: text,
+                    senderId: senderId,
+                });
+            }
+     
         } catch (error) {
-            console.error("خطأ:", error);
+            console.error("Error while i am sending the message:", error);
         }
     });
 
@@ -77,7 +86,7 @@ io.to(senderId).emit('receiveMessage', {
     }
 });
 
-    socket.on('disconnect', () => {        console.log('مستخدم غادر');
+    socket.on('disconnect', () => { console.log("user left the the room");
     });
 
 }
@@ -87,6 +96,7 @@ io.to(senderId).emit('receiveMessage', {
 app.use('/api/auth', authRoutes);
 app.use('/api/friends', friendRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api', userRoutes);
 
 
 // الاتصال بـ MongoDB
@@ -94,8 +104,8 @@ mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
 })
-.then(() => console.log("تم الاتصال بـ MongoDB بنجاح"))
-.catch((err) => console.log("خطأ في الاتصال:", err.message));
+.then(() => console.log("connected Succesfully to MONGO DB"))
+.catch((err) => console.log("some thing went wrong while making connection to MONGO DB ;( :", err.message));
 
 app.get('/', (req, res) => res.send('Backend is running!'));
 
@@ -104,5 +114,5 @@ const host = '0.0.0.0';
 
 // تشغيل السيرفر الموحد
 server.listen(port, host, () => {
-    console.log(`الخادم يعمل الآن مع Socket.io على المنفذ: ${port}`);
+    console.log(`socket is working on the port :  ${port}`);
 });

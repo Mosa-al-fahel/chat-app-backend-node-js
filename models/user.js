@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema({
         type: String, 
         default: "https://placeholder-avatar.png" 
     },
+    fcmToken: { type: String, default: null },
     // وأضفت هذا لتجهيز الشات مستقبلاً دون أي تدخل منك الآن
     friends: [{ 
         type: mongoose.Schema.Types.ObjectId, 
